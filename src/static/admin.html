@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin - Mergington Activities</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Admin Panel</h1>
+      <a href="index.html">← Back to activities</a>
+    </header>
+
+    <main>
+      <section id="login-section">
+        <h3>Log In</h3>
+        <form id="login-form">
+          <div class="form-group">
+            <label for="username">Username</label>
+            <input id="username" required />
+          </div>
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input id="password" type="password" required />
+          </div>
+          <button type="submit">Log In</button>
+        </form>
+        <div id="login-message" class="hidden"></div>
+      </section>
+
+      <section id="manage-section" class="hidden">
+        <h3>Create Activity</h3>
+        <form id="create-form">
+          <div class="form-group">
+            <label for="act-name">Name</label>
+            <input id="act-name" required />
+          </div>
+          <div class="form-group">
+            <label for="act-desc">Description</label>
+            <input id="act-desc" required />
+          </div>
+          <div class="form-group">
+            <label for="act-schedule">Schedule</label>
+            <input id="act-schedule" required />
+          </div>
+          <div class="form-group">
+            <label for="act-max">Max participants</label>
+            <input id="act-max" type="number" min="1" value="10" required />
+          </div>
+          <button type="submit">Create Activity</button>
+        </form>
+        <div id="manage-message" class="hidden"></div>
+
+        <h3>Existing Activities</h3>
+        <div id="manage-activities">Loading activities...</div>
+      </section>
+    </main>
+
+    <footer>
+      <p>&copy; 2023 Mergington High School</p>
+    </footer>
+
+    <script src="admin.js"></script>
+  </body>
+</html>

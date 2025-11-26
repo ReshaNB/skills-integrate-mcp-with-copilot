@@ -5,7 +5,8 @@ A super simple FastAPI application that allows students to view and sign up
 for extracurricular activities at Mergington High School.
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 import os
@@ -77,6 +78,79 @@ activities = {
     }
 }
 
+# Simple authentication + role-based access control (RBAC)
+#
+# This is a minimal, self-contained implementation suitable for a small
+# demo project. It uses HTTP Basic auth and an in-memory user store with
+# roles. For production use, replace with a proper password-hashing
+# strategy and persistent user storage.
+security = HTTPBasic()
+import hashlib
+import secrets
+
+# In-memory user store: username -> {password_hash, role}
+# Passwords are stored as SHA-256 hex digests of the password string.
+# Default seeded users (demo):
+#  - admin / adminpass (role: admin)
+#  - teacher / teacherpass (role: teacher)
+users = {
+    "admin": {
+        "password_hash": hashlib.sha256(b"adminpass").hexdigest(),
+        "role": "admin"
+    },
+    "teacher": {
+        "password_hash": hashlib.sha256(b"teacherpass").hexdigest(),
+        "role": "teacher"
+    }
+}
+
+
+def verify_password(plain_password: str, password_hash: str) -> bool:
+    """Verify a plaintext password against a stored SHA-256 hex digest."""
+    candidate_hash = hashlib.sha256(plain_password.encode("utf-8")).hexdigest()
+    return secrets.compare_digest(candidate_hash, password_hash)
+
+
+def get_current_user(credentials: HTTPBasicCredentials = Depends(security)):
+    """Dependency to get the current authenticated user.
+
+    Raises 401 if authentication fails.
+    Returns a dict with keys `username` and `role` on success.
+    """
+    username = credentials.username
+    password = credentials.password
+
+    if username not in users:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Invalid authentication credentials",
+                            headers={"WWW-Authenticate": "Basic"})
+
+    user = users[username]
+    if not verify_password(password, user["password_hash"]):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Invalid authentication credentials",
+                            headers={"WWW-Authenticate": "Basic"})
+
+    return {"username": username, "role": user["role"]}
+
+
+def require_role(required_role: str):
+    """Return a dependency that enforces the given role.
+
+    Users with role 'admin' are allowed to perform any action.
+    """
+    def role_dependency(current_user: dict = Depends(get_current_user)):
+        user_role = current_user.get("role")
+        if user_role == "admin":
+            return current_user
+        if user_role != required_role:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail="Insufficient permissions")
+        return current_user
+
+    return role_dependency
+
+
 
 @app.get("/")
 def root():
@@ -130,3 +204,36 @@ def unregister_from_activity(activity_name: str, email: str):
     # Remove student
     activity["participants"].remove(email)
     return {"message": f"Unregistered {email} from {activity_name}"}
+
+
+# Admin/teacher endpoints to manage activities (require authentication)
+
+
+@app.post("/activities")
+def create_activity(activity_name: str,
+                    description: str,
+                    schedule: str,
+                    max_participants: int,
+                    user: dict = Depends(require_role("teacher"))):
+    """Create a new activity. Requires `teacher` role or `admin`."""
+    if activity_name in activities:
+        raise HTTPException(status_code=400, detail="Activity already exists")
+
+    activities[activity_name] = {
+        "description": description,
+        "schedule": schedule,
+        "max_participants": max_participants,
+        "participants": []
+    }
+    return {"message": f"Created activity {activity_name}", "created_by": user["username"]}
+
+
+@app.delete("/activities/{activity_name}")
+def delete_activity(activity_name: str, user: dict = Depends(require_role("teacher"))):
+    """Delete an activity. Requires `teacher` role or `admin`."""
+    if activity_name not in activities:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
+    del activities[activity_name]
+    return {"message": f"Deleted activity {activity_name}", "deleted_by": user["username"]}
+
